@@ -34,17 +34,17 @@ let saving = false;
 function showError(error) {
   console.error(error);
   alert("Supabase request failed: " + error.message +
-    "\nCheck the project URL/key, user_skills columns, and RLS policies (see README).");
+    "\nCheck the project URL/key, skill_data columns, and RLS policies (see README).");
 }
 
 async function loadSkillsFromSupabase() {
-  const { data, error } = await db.from("user_skills").select("id,user_id,skill_name,category,proficiency_level,years_experience,created_at").order("id", { ascending: false });
+  const { data, error } = await db.from("skill_data").select('*').order("id", { ascending: false });
   if (error) throw error;
   skills = data.map((row) => ({
-    id: row.id, userId: row.user_id, skillName: row.skill_name,
-    category: row.category, proficiency: row.proficiency_level,
-    experience: row.years_experience,
-    createdAt: row.created_at ? new Date(row.created_at).toLocaleDateString("en-GB") : "—"
+    id: row.id, userId: row["User ID"], skillName: row["Skill Name"] ?? "",
+    category: row["Category"] ?? "", proficiency: row["Proficiency"] ?? "",
+    experience: row["Experience"] ?? 0,
+    createdAt: row["created at"] ? new Date(row["created at"]).toLocaleDateString("en-GB") : "—"
   }));
   renderSkills(searchInput.value);
 }
@@ -64,8 +64,8 @@ function editSkill(id) {
   skillIdInput.value = skill.id;
   userIdInput.value = skill.userId;
   skillNameInput.value = skill.skillName;
-  categoryInput.value = skill.category;
-  proficiencyInput.value = skill.proficiency;
+  categoryInput.value = Array.from(categoryInput.options).find((option) => option.value.toLowerCase() === skill.category.toLowerCase())?.value ?? "";
+  proficiencyInput.value = Array.from(proficiencyInput.options).find((option) => option.value.toLowerCase() === skill.proficiency.toLowerCase())?.value ?? "";
   experienceInput.value = skill.experience;
   formTitle.textContent = "Edit Skill";
   submitButton.textContent = "Update Skill";
@@ -77,7 +77,7 @@ async function deleteSkill(id) {
   if (saving || !confirm("Delete this skill?")) return;
   saving = true;
   try {
-    const { data, error } = await db.from("user_skills").delete().eq("id", id).select("id");
+    const { data, error } = await db.from("skill_data").delete().eq("id", id).select("id");
     if (error) throw error;
     if (!data.length) throw new Error("No row deleted. Check your access policies.");
     if (String(skillIdInput.value) === String(id)) resetForm();
@@ -87,7 +87,7 @@ async function deleteSkill(id) {
 }
 
 function getBadgeClass(level) {
-  return ["Beginner", "Intermediate", "Expert"].includes(level) ? level.toLowerCase() : "";
+  return ["beginner", "intermediate", "expert"].includes(String(level).toLowerCase()) ? String(level).toLowerCase() : "";
 }
 
 function renderSkills(searchText = "") {
@@ -149,25 +149,28 @@ skillForm.addEventListener("submit", async function (event) {
   event.preventDefault();
 
   if (saving) return;
-  const record = {
-    user_id: Number(userIdInput.value),
-    skill_name: skillNameInput.value.trim(),
-    category: categoryInput.value,
-    proficiency_level: proficiencyInput.value,
-    years_experience: Number(experienceInput.value)
-  };
-  if (!record.skill_name || !Number.isSafeInteger(record.user_id) || record.user_id < 1 ||
-      !Number.isFinite(record.years_experience) || record.years_experience < 0 || record.years_experience > 99) {
+  const userId = Number(userIdInput.value);
+  const skillName = skillNameInput.value.trim();
+  const experience = Number(experienceInput.value);
+  if (!skillName || !Number.isSafeInteger(userId) || userId < 1 ||
+      !Number.isFinite(experience) || experience < 0 || experience > 99) {
     alert("Enter a valid skill, positive integer user ID, and experience between 0 and 99.");
     return;
   }
+  const record = {
+    "User ID": userId,
+    "Skill Name": skillName,
+    "Category": categoryInput.value,
+    "Proficiency": proficiencyInput.value,
+    "Experience": experience
+  };
   saving = true;
   submitButton.disabled = true;
   cancelButton.disabled = true;
   try {
     const query = skillIdInput.value
-      ? db.from("user_skills").update(record).eq("id", skillIdInput.value)
-      : db.from("user_skills").insert(record);
+      ? db.from("skill_data").update(record).eq("id", skillIdInput.value)
+      : db.from("skill_data").insert(record);
     const { data, error } = await query.select("id");
     if (error) throw error;
     if (!data.length) throw new Error("No row saved. Check your access policies.");

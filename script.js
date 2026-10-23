@@ -3,7 +3,7 @@ const supabaseUrl = "https://egwzmsczmbheknnxsvgi.supabase.co";
 
 const supabaseKey = "sb_publishable_OB_MAclZ_ycER3HeIuo02Q_Up2zae9n";
 
-const db = window.supabase.skill_data(
+const db = window.supabase.createClient(
     supabaseUrl,
     supabaseKey
 );
@@ -28,18 +28,66 @@ const submitButton = document.getElementById("submitButton");
 const cancelButton = document.getElementById("cancelButton");
 const formTitle = document.getElementById("formTitle");
 
-let skills = JSON.parse(localStorage.getItem("userSkills")) || [];
+let skills = [];
+let saving = false;
 
-function saveSkills() {
-  localStorage.setItem("userSkills", JSON.stringify(skills));
+function showError(error) {
+  console.error(error);
+  alert("Supabase request failed: " + error.message +
+    "\nCheck the project URL/key, skill_data columns, and RLS policies (see README).");
 }
 
-function createDate() {
-  return new Date().toLocaleDateString("en-GB");
+async function loadSkillsFromSupabase() {
+  const { data, error } = await db.from("skill_data").select('*').order("id", { ascending: false });
+  if (error) throw error;
+  skills = data.map((row) => ({
+    id: row.id, userId: row["User ID"], skillName: row["Skill Name"] ?? "",
+    category: row["Category"] ?? "", proficiency: row["Proficiency"] ?? "",
+    experience: row["Experience"] ?? 0,
+    createdAt: row["created at"] ? new Date(row["created at"]).toLocaleDateString("en-GB") : "—"
+  }));
+  renderSkills(searchInput.value);
+}
+
+function resetForm() {
+  skillForm.reset();
+  skillIdInput.value = "";
+  formTitle.textContent = "Add New Skill";
+  submitButton.textContent = "Add Skill";
+  cancelButton.classList.add("hidden");
+}
+
+function editSkill(id) {
+  if (saving) return;
+  const skill = skills.find((item) => String(item.id) === String(id));
+  if (!skill) return;
+  skillIdInput.value = skill.id;
+  userIdInput.value = skill.userId;
+  skillNameInput.value = skill.skillName;
+  categoryInput.value = Array.from(categoryInput.options).find((option) => option.value.toLowerCase() === skill.category.toLowerCase())?.value ?? "";
+  proficiencyInput.value = Array.from(proficiencyInput.options).find((option) => option.value.toLowerCase() === skill.proficiency.toLowerCase())?.value ?? "";
+  experienceInput.value = skill.experience;
+  formTitle.textContent = "Edit Skill";
+  submitButton.textContent = "Update Skill";
+  cancelButton.classList.remove("hidden");
+  skillNameInput.focus();
+}
+
+async function deleteSkill(id) {
+  if (saving || !confirm("Delete this skill?")) return;
+  saving = true;
+  try {
+    const { data, error } = await db.from("skill_data").delete().eq("id", id).select("id");
+    if (error) throw error;
+    if (!data.length) throw new Error("No row deleted. Check your access policies.");
+    if (String(skillIdInput.value) === String(id)) resetForm();
+    await loadSkillsFromSupabase();
+  } catch (error) { showError(error); }
+  finally { saving = false; }
 }
 
 function getBadgeClass(level) {
-  return level.toLowerCase();
+  return ["beginner", "intermediate", "expert"].includes(String(level).toLowerCase()) ? String(level).toLowerCase() : "";
 }
 
 function renderSkills(searchText = "") {
@@ -70,8 +118,8 @@ function renderSkills(searchText = "") {
     const row = document.createElement("tr");
 
     row.innerHTML = `
-      <td>${skill.id}</td>
-      <td>${skill.userId}</td>
+      <td>${escapeHTML(skill.id)}</td>
+      <td>${escapeHTML(skill.userId)}</td>
       <td><strong>${escapeHTML(skill.skillName)}</strong></td>
       <td>${escapeHTML(skill.category)}</td>
       <td>
@@ -79,18 +127,20 @@ function renderSkills(searchText = "") {
           ${escapeHTML(skill.proficiency)}
         </span>
       </td>
-      <td>${skill.experience} years</td>
-      <td>${skill.createdAt}</td>
+      <td>${escapeHTML(skill.experience)} years</td>
+      <td>${escapeHTML(skill.createdAt)}</td>
       <td>
-        <button class="btn edit" onclick="editSkill(${skill.id})">
+        <button class="btn edit" data-action="edit">
           Edit
         </button>
-        <button class="btn delete" onclick="deleteSkill(${skill.id})">
+        <button class="btn delete" data-action="delete">
           Delete
         </button>
       </td>
     `;
 
+    row.querySelector('[data-action="edit"]').addEventListener("click", () => editSkill(skill.id));
+    row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteSkill(skill.id));
     tableBody.appendChild(row);
   });
 }
@@ -98,36 +148,41 @@ function renderSkills(searchText = "") {
 skillForm.addEventListener("submit", async function (event) {
   event.preventDefault();
 
-  const record = {
-    skill_name: skillNameInput.value.trim(),
-    category: categoryInput.value,
-    proficiency_level: proficiencyInput.value,
-    years_experience: Number(experienceInput.value)
-  };
-
-  console.log("Supabase ko bheja ja raha data:", record);
-
-  const { data, error } = await db
-    .from("user_skills")
-    .insert(record)
-    .select();
-
-  if (error) {
-    console.error("Supabase insert error:", error);
-    alert("Data save nahi hua: " + error.message);
+  if (saving) return;
+  const userId = Number(userIdInput.value);
+  const skillName = skillNameInput.value.trim();
+  const experience = Number(experienceInput.value);
+  if (!skillName || !Number.isSafeInteger(userId) || userId < 1 ||
+      !Number.isFinite(experience) || experience < 0 || experience > 99) {
+    alert("Enter a valid skill, positive integer user ID, and experience between 0 and 99.");
     return;
   }
-
-  console.log("Supabase mein save hua:", data);
-  alert("Skill Supabase mein save ho gayi.");
-
-  skillForm.reset();
-  loadSkillsFromSupabase();
+  const record = {
+    "User ID": userId,
+    "Skill Name": skillName,
+    "Category": categoryInput.value,
+    "Proficiency": proficiencyInput.value,
+    "Experience": experience
+  };
+  saving = true;
+  submitButton.disabled = true;
+  cancelButton.disabled = true;
+  try {
+    const query = skillIdInput.value
+      ? db.from("skill_data").update(record).eq("id", skillIdInput.value)
+      : db.from("skill_data").insert(record);
+    const { data, error } = await query.select("id");
+    if (error) throw error;
+    if (!data.length) throw new Error("No row saved. Check your access policies.");
+    resetForm();
+    await loadSkillsFromSupabase();
+  } catch (error) { showError(error); }
+  finally {
+    saving = false;
+    submitButton.disabled = false;
+    cancelButton.disabled = false;
+  }
 });
-{
-  submitButton.textContent = "Add Skill";
-  cancelButton.classList.add("hidden");
-}
 
 cancelButton.addEventListener("click", resetForm);
 
@@ -144,4 +199,4 @@ function escapeHTML(value) {
     .replaceAll("'", "&#039;");
 }
 
-renderSkills();
+loadSkillsFromSupabase().catch(showError);

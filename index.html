@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Skills</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>My Skills</h1>
+      <p>Apni skills aur experience manage karein</p>
+    </header>
+
+    <section class="form-card">
+      <h2 id="formTitle">Add New Skill</h2>
+
+      <form id="skillForm">
+        <input type="hidden" id="skillId" />
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="userId">User ID</label>
+            <input type="number" id="userId" placeholder="Example: 1" required />
+          </div>
+
+          <div class="form-group">
+            <label for="skillName">Skill Name</label>
+            <input type="text" id="skillName" placeholder="Example: React" required />
+          </div>
+
+          <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category" required>
+              <option value="">Select category</option>
+              <option value="Technical">Technical</option>
+              <option value="Soft Skill">Soft Skill</option>
+              <option value="Language">Language</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="proficiency">Proficiency Level</label>
+            <select id="proficiency" required>
+              <option value="">Select level</option>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Expert">Expert</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="experience">Years of Experience</label>
+            <input
+              type="number"
+              id="experience"
+              min="0"
+              max="99"
+              step="0.1"
+              placeholder="Example: 2.5"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-buttons">
+          <button type="submit" class="btn primary" id="submitButton">
+            Add Skill
+          </button>
+
+          <button type="button" class="btn secondary hidden" id="cancelButton">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="table-card">
+      <div class="table-header">
+        <div>
+          <h2>Skills List</h2>
+          <p id="skillCount">0 skills found</p>
+        </div>
+
+        <input
+          type="search"
+          id="searchInput"
+          placeholder="Search skill..."
+        />
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User ID</th>
+              <th>Skill Name</th>
+              <th>Category</th>
+              <th>Proficiency</th>
+              <th>Experience</th>
+              <th>Created At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody id="skillsTableBody">
+            <!-- JavaScript yahan rows add karegi -->
+          </tbody>
+        </table>
+
+        <div id="emptyMessage" class="empty-message">
+          Abhi koi skill add nahi ki gayi.
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="script.js"></script>
+
+
+</body>
+</html>
